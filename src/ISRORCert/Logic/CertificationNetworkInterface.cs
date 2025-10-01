@@ -1,4 +1,6 @@
-﻿using ISRORCert.Logic.Handler;
+﻿using System.Net;
+using ISRORCert.Logic.Handler;
+using ISRORCert.Model;
 using ISRORCert.Network;
 using ISRORCert.Network.SecurityApi;
 
@@ -11,18 +13,30 @@ namespace ISRORCert.Logic
         private readonly ILogger _logger;
         private readonly PacketHandlerManager _packetHandlerManager;
         private readonly IEnumerable<IPacketHandler> _packetHandlers;
+        private readonly CertificationManager _certificationManager;
 
-        public CertificationInterface(ILogger<CertificationInterface> logger, PacketHandlerManager packetHandlerManager, IEnumerable<IPacketHandler> packetHandlers)
+        public CertificationInterface(ILogger<CertificationInterface> logger, PacketHandlerManager packetHandlerManager, IEnumerable<IPacketHandler> packetHandlers, CertificationManager certificationManager)
         {
             _logger = logger;
             _packetHandlerManager = packetHandlerManager;
             _packetHandlers = packetHandlers;
+            _certificationManager = certificationManager;
         }
 
         public bool OnConnect(AsyncContext context)
         {
+            if (context?.State?.EndPoint is not IPEndPoint ipEndPoint)
+                return false;
+
+            var clientAddress = ipEndPoint.Address;
+            if (!_certificationManager.ServerMachines.Any(p => clientAddress.Equals(p.PublicIPAddress) || clientAddress.Equals(p.PrivateIPAddress)))
+            {
+                _logger.LogCritical("Blocked a connection attempt from {clientAddress}!", clientAddress);
+                return false;
+            }
+
             context.Connected = true;
-            _logger.LogInformation($"Connected: {context.Guid}");
+            _logger.LogInformation("Connected: {guid}", context.Guid);
             return true;
         }
 
